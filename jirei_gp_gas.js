@@ -5,18 +5,14 @@ const CONFIG = {
   OUTPUT_FOLDER_ID : '13cmi42diyueRgDRYfE04LWT2IAZ8nr8e',   // 完成スライドの保存先フォルダID
   NOTIFY_EMAIL     : 'jnagai0423@gmail.com',       // 完成通知メール
   TEMPLATE_SHEET   : 'CONFIG',                       // テンプレートIDを保存するシート名
+  TEMPLATE_SLIDE_ID: '1vukTwLSPjNdbFrr89SfP7kGVlsPh50gwoAwlwdxcyh8', // 背景デザインとして使う既存テンプレートID
   ENABLE_UI_ALERT  : false,                          // ぐるぐる回避のため、通常は false 推奨
 };
 
 // スプレッドシート列番号（1始まり）
 const COL = {
-  CLIENT     : 2,  // B: 顧客名
-  SUMMARY    : 3,  // C: 事例をざっくり
-  INDUSTRY   : 4,  // D: 業種
-  DETAIL     : 5,  // E: 事例の内容詳細
-  SCORE      : 6,  // F: スコア
-  SLIDE_URL  : 7,  // G: 生成スライドURL（自動書き込み）
-  STATUS     : 8,  // H: ステータス（自動書き込み）
+  SLIDE_URL_HEADER : '生成スライドURL',
+  STATUS_HEADER    : 'ステータス',
 };
 
 
@@ -32,47 +28,57 @@ function createTemplate() {
   // レイアウト定数（単位: pt、16:9）
   const W = 720, H = 405;
 
-  // 顧客名
-  const clientBox = slide.insertTextBox('{{CLIENT_NAME}}', 20, 10, 400, 40);
-  clientBox.getText().getTextStyle().setFontSize(24).setBold(true);
+  // タイトル補助
+  const gpTitleBox = slide.insertTextBox('事例グランプリ', 20, 10, 220, 18);
+  const gpTitleStyle = gpTitleBox.getText().getTextStyle();
+  gpTitleStyle.setFontSize(10).setBold(true);
+  safeSetTextColor(gpTitleStyle, '#8B5A2B');
 
-  // 業種
-  const industryBox = slide.insertTextBox('業種：{{INDUSTRY}}', 20, 55, 300, 28);
-  industryBox.getText().getTextStyle().setFontSize(13);
+  // タイトル（顧客名）
+  const clientBox = slide.insertTextBox('{{CLIENT_NAME}}', 20, 24, 460, 36);
+  clientBox.getText().getTextStyle().setFontSize(21).setBold(true);
 
-  // 事例概要
-  const summaryBox = slide.insertTextBox('{{SUMMARY}}', 20, 90, W - 40, 50);
-  summaryBox.getText().getTextStyle().setFontSize(18).setBold(true);
+  // 発表者
+  const personBox = slide.insertTextBox('担当者：{{PERSON_NAME}}', 505, 42, 195, 20);
+  personBox.getText().getTextStyle().setFontSize(11);
+  personBox.getText().getParagraphStyle().setParagraphAlignment(SlidesApp.ParagraphAlignment.END);
 
-  // 事例内容ラベル
-  const detailLabel = slide.insertTextBox('■ 事例内容', 20, 150, 200, 24);
+  // 上段メタ情報
+  const industryBox = slide.insertTextBox('・業種：{{INDUSTRY}}', 20, 62, W - 40, 16);
+  industryBox.getText().getTextStyle().setFontSize(9);
+  const planBox = slide.insertTextBox('・運用プラン：{{PLAN}}', 20, 77, W - 40, 16);
+  planBox.getText().getTextStyle().setFontSize(9);
+  const productBox = slide.insertTextBox('・導入製品：{{PRODUCTS}}', 20, 92, W - 40, 16);
+  productBox.getText().getTextStyle().setFontSize(9);
+  const siteUrlBox = slide.insertTextBox('・サイトURL：{{SITE_URL}}', 20, 107, W - 40, 16);
+  siteUrlBox.getText().getTextStyle().setFontSize(8);
+  const genreBox = slide.insertTextBox('・成果ジャンル：{{GENRE}}', 20, 122, W - 40, 16);
+  genreBox.getText().getTextStyle().setFontSize(9);
+
+  // 成果特徴（目立たせる）
+  const featureLabel = slide.insertTextBox('成果を一言で', 20, 146, 220, 20);
+  featureLabel.getText().getTextStyle().setFontSize(12).setBold(true);
+  const featureBox = slide.insertTextBox('{{FEATURE}}', 20, 166, W - 40, 42);
+  featureBox.getText().getTextStyle().setFontSize(28).setBold(true);
+
+  // 成果内容（大きく表示）
+  const detailLabel = slide.insertTextBox('事例の内容', 20, 212, 220, 20);
   detailLabel.getText().getTextStyle().setFontSize(12).setBold(true);
+  const detailBox = slide.insertTextBox('{{DETAIL}}', 20, 232, W - 40, 58);
+  detailBox.getText().getTextStyle().setFontSize(14);
 
-  // 事例内容詳細
-  const detailBox = slide.insertTextBox('{{DETAIL}}', 20, 178, 460, 110);
-  detailBox.getText().getTextStyle().setFontSize(11);
-
-  // スコアラベル
-  const scoreLabelBox = slide.insertTextBox('スコア', 510, 150, 180, 24);
-  scoreLabelBox.getText().getTextStyle().setFontSize(12).setBold(true);
-  scoreLabelBox.getText().getParagraphStyle().setParagraphAlignment(SlidesApp.ParagraphAlignment.CENTER);
-
-  // スコア数値
-  const scoreBox = slide.insertTextBox('{{SCORE}}点', 510, 178, 180, 70);
-  scoreBox.getText().getTextStyle().setFontSize(40).setBold(true);
-  scoreBox.getText().getParagraphStyle().setParagraphAlignment(SlidesApp.ParagraphAlignment.CENTER);
-
-  // AIコメントラベル
-  const aiLabel = slide.insertTextBox('AI分析コメント', 20, 300, 200, 24);
+  // AIコメント（右側に寄せる）
+  const aiLabel = slide.insertTextBox('※', 360, 334, 20, 20);
   aiLabel.getText().getTextStyle().setFontSize(11).setBold(true);
 
   // AIコメント本文
-  const aiBox = slide.insertTextBox('{{AI_COMMENT}}', 20, 324, W - 40, 40);
-  aiBox.getText().getTextStyle().setFontSize(10);
+  const aiBox = slide.insertTextBox('{{AI_COMMENT}}', 380, 334, 320, 34);
+  aiBox.getText().getTextStyle().setFontSize(9);
 
   // ⑩ フッター（日付）
-  const footerBox = slide.insertTextBox('{{DATE}}　Cloud Circus 事例GP', 20, H - 30, 400, 24);
+  const footerBox = slide.insertTextBox('{{FOOTER_DATE}}', 500, H - 24, 200, 18);
   footerBox.getText().getTextStyle().setFontSize(9);
+  footerBox.getText().getParagraphStyle().setParagraphAlignment(SlidesApp.ParagraphAlignment.END);
 
   // 作成直後はMyドライブ直下になるため、指定フォルダへ移動
   try {
@@ -107,19 +113,13 @@ function createTemplate() {
 function onFormSubmit(e) {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
   const lastRow = sheet.getLastRow();
+  const outCol = ensureOutputColumns(sheet);
 
   // ステータス更新（処理中）
-  sheet.getRange(lastRow, COL.STATUS).setValue('処理中...');
+  sheet.getRange(lastRow, outCol.statusCol).setValue('処理中...');
 
   try {
-    const row = sheet.getRange(lastRow, 1, 1, 6).getValues()[0];
-    const data = {
-      clientName : String(row[COL.CLIENT - 1] || '').trim(),
-      summary    : String(row[COL.SUMMARY - 1] || '').trim(),
-      industry   : String(row[COL.INDUSTRY - 1] || '').trim(),
-      detail     : String(row[COL.DETAIL - 1] || '').trim(),
-      score      : String(row[COL.SCORE - 1] || '').trim(),
-    };
+    const data = getRowDataByHeader(sheet, lastRow);
 
     if (!data.clientName) throw new Error('顧客名が空です');
 
@@ -130,8 +130,8 @@ function onFormSubmit(e) {
     const slideUrl = createSlide(data, aiComment);
 
     // スプレッドシートに結果書き込み
-    sheet.getRange(lastRow, COL.SLIDE_URL).setValue(slideUrl);
-    sheet.getRange(lastRow, COL.STATUS).setValue('完了');
+    sheet.getRange(lastRow, outCol.slideUrlCol).setValue(slideUrl);
+    sheet.getRange(lastRow, outCol.statusCol).setValue('完了');
 
     // メール通知
     sendNotification(data.clientName, slideUrl, aiComment);
@@ -139,7 +139,7 @@ function onFormSubmit(e) {
     Logger.log(`[完了] ${data.clientName} → ${slideUrl}`);
 
   } catch (err) {
-    sheet.getRange(lastRow, COL.STATUS).setValue('エラー: ' + err.message);
+    sheet.getRange(lastRow, outCol.statusCol).setValue('エラー: ' + err.message);
     Logger.log('[エラー] ' + err.toString());
     GmailApp.sendEmail(CONFIG.NOTIFY_EMAIL, '[エラー] 事例スライド生成失敗', err.toString());
   }
@@ -149,7 +149,7 @@ function onFormSubmit(e) {
 // Gemini APIでAIコメント生成
 function generateAIComment(data) {
   if (!CONFIG.GEMINI_API_KEY || CONFIG.GEMINI_API_KEY === 'YOUR_GEMINI_API_KEY_HERE') {
-    return '（APIキー未設定のためAIコメントなし）';
+    return buildFallbackComment(data);
   }
 
   const prompt = `
@@ -160,9 +160,13 @@ function generateAIComment(data) {
 
 顧客名: ${data.clientName}
 業種: ${data.industry}
-事例概要: ${data.summary}
-詳細: ${data.detail}
-スコア: ${data.score}
+発表者: ${data.personName}
+運用プラン: ${data.plan}
+導入製品: ${data.products}
+サイトURL: ${data.siteUrl}
+成果ジャンル: ${data.genre}
+成果特徴: ${data.feature}
+成果内容: ${data.detail}
 `;
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${CONFIG.GEMINI_API_KEY}`;
@@ -178,32 +182,34 @@ function generateAIComment(data) {
       payload: JSON.stringify(payload),
       muteHttpExceptions: true
     });
-    const json = JSON.parse(res.getContentText());
-    if (json.candidates?.[0]?.content?.parts?.[0]?.text) {
-      return json.candidates[0].content.parts[0].text.trim();
+    const status = res.getResponseCode();
+    const body = res.getContentText();
+    if (status < 200 || status >= 300) {
+      Logger.log(`Gemini HTTPエラー: status=${status}, body=${body}`);
+      return buildFallbackComment(data);
     }
-    Logger.log('Gemini応答異常: ' + res.getContentText());
-    return '（AIコメント生成に失敗しました）';
+
+    const json = JSON.parse(body);
+    const text = json.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (text && String(text).trim()) {
+      return String(text).trim();
+    }
+    Logger.log('Gemini応答異常: ' + body);
+    return buildFallbackComment(data);
   } catch (err) {
     Logger.log('Gemini呼び出しエラー: ' + err);
-    return '（AIコメント生成に失敗しました）';
+    return buildFallbackComment(data);
   }
 }
 
 
 // スライド生成（テンプレートコピー + 置換）
 function createSlide(data, aiComment) {
-  // CONFIGシートからテンプレートID取得
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const configSheet = ss.getSheetByName(CONFIG.TEMPLATE_SHEET);
-  if (!configSheet) throw new Error('CONFIGシートが見つかりません。先に「①テンプレートを作成」を実行してください。');
-
-  const templateId = String(configSheet.getRange('B1').getValue() || '').trim();
-  if (!templateId) throw new Error('テンプレートIDが未設定です。先に「①テンプレートを作成」を実行してください。');
+  const templateId = getTemplateSlideId();
 
   // テンプレートをコピー
   const date = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyyMMdd');
-  const fileName = `事例GP_${data.clientName}_${date}`;
+  const fileName = `事例GP_${data.personName || '担当者未入力'}_${date}`;
 
   let folder;
   try {
@@ -223,22 +229,69 @@ function createSlide(data, aiComment) {
   const pres = SlidesApp.openById(copy.getId());
 
   // プレースホルダー置換マップ
+  const aiCommentForSlide = trimForSlide(aiComment, 95);
   const replacements = {
     '{{CLIENT_NAME}}' : data.clientName,
-    '{{SUMMARY}}'     : data.summary,
+    '{{PERSON_NAME}}' : data.personName,
     '{{INDUSTRY}}'    : data.industry,
+    '{{PLAN}}'        : data.plan,
+    '{{PRODUCTS}}'    : data.products,
+    '{{SITE_URL}}'    : data.siteUrl,
+    '{{GENRE}}'       : data.genre,
+    '{{FEATURE}}'     : data.feature,
     '{{DETAIL}}'      : data.detail,
-    '{{SCORE}}'       : data.score,
-    '{{AI_COMMENT}}'  : aiComment,
+    '{{AI_COMMENT}}'  : aiCommentForSlide,
     '{{DATE}}'        : Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy年MM月dd日'),
+    '{{FOOTER_DATE}}' : Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy年M月') + '：事例グランプリ',
+    // 旧テンプレート互換（古いプレースホルダーが残っていても置換する）
+    '{{SUMMARY}}'     : data.feature,
+    '{{INDUSTORY}}'   : data.industry || data.genre,
+    '{{URL}}'         : data.siteUrl,
+    '{{SCORE}}'       : '',
   };
 
   // プレゼンテーション全体で一括置換（シェイプ単位より大幅に高速）
+  let replacedCoreCount = 0;
   Object.keys(replacements).forEach(key => {
-    pres.replaceAllText(key, replacements[key]);
+    const replaced = pres.replaceAllText(key, replacements[key]);
+    if (['{{CLIENT_NAME}}', '{{PERSON_NAME}}', '{{PLAN}}', '{{GENRE}}', '{{FEATURE}}', '{{DETAIL}}'].includes(key)) {
+      replacedCoreCount += Number(replaced || 0);
+    }
   });
 
+  // 背景テンプレートにプレースホルダーが無い場合でも、必要情報を必ず描画する
+  if (replacedCoreCount === 0) {
+    renderContentFallback(pres, data, aiComment);
+  }
+  cleanupLegacyScoreElements(pres);
+  insertSitePreviewImage(pres, data.siteUrl);
+
   return `https://docs.google.com/presentation/d/${copy.getId()}/edit`;
+}
+
+function getTemplateSlideId() {
+  // 1) CONFIG定数で明示指定されていれば最優先
+  const configTemplateId = String(CONFIG.TEMPLATE_SLIDE_ID || '').trim();
+  if (configTemplateId) return extractSlideId(configTemplateId);
+
+  // 2) 既存運用との互換でCONFIGシートのB1も参照
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const configSheet = ss.getSheetByName(CONFIG.TEMPLATE_SHEET);
+  if (!configSheet) {
+    throw new Error('テンプレートIDが見つかりません。CONFIG.TEMPLATE_SLIDE_ID を設定してください。');
+  }
+  const sheetTemplateId = String(configSheet.getRange('B1').getValue() || '').trim();
+  if (!sheetTemplateId) {
+    throw new Error('テンプレートID未設定です。CONFIG.TEMPLATE_SLIDE_ID または CONFIGシートB1を設定してください。');
+  }
+  return extractSlideId(sheetTemplateId);
+}
+
+function extractSlideId(value) {
+  const text = String(value || '').trim();
+  const m = text.match(/\/d\/([a-zA-Z0-9_-]+)/);
+  if (m && m[1]) return m[1];
+  return text;
 }
 
 
@@ -300,8 +353,8 @@ function runManually() {
     return;
   }
 
-  const row = sheet.getRange(lastRow, 1, 1, 6).getValues()[0];
-  const clientName = row[COL.CLIENT - 1];
+  const data = getRowDataByHeader(sheet, lastRow);
+  const clientName = data.clientName || '（未入力）';
 
   const result = ui.alert(
     '手動生成',
@@ -311,10 +364,263 @@ function runManually() {
 
   if (result === ui.Button.YES) {
     onFormSubmit(null);
-    const url = sheet.getRange(lastRow, COL.SLIDE_URL).getValue();
+    const outCol = ensureOutputColumns(sheet);
+    const url = sheet.getRange(lastRow, outCol.slideUrlCol).getValue();
     safeAlert('完了', `スライドが生成されました。\n\n${url}`);
   }
 }
 
 
-// test commit
+// ヘッダー名ベースで行データを取得（フォーム項目変更に強くする）
+function getRowDataByHeader(sheet, rowNumber) {
+  const headerRow = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const valueRow = sheet.getRange(rowNumber, 1, 1, sheet.getLastColumn()).getValues()[0];
+
+  const normalizedHeaders = headerRow.map(h => normalizeHeader(h));
+  const getByKey = (keys, excludeKeys) => {
+    const normalizedKeys = (keys || []).map(k => normalizeHeader(k));
+    const normalizedExcludes = (excludeKeys || []).map(k => normalizeHeader(k));
+    const idx = normalizedHeaders.findIndex(h => {
+      const hit = normalizedKeys.some(k => k && h.includes(k));
+      if (!hit) return false;
+      return !normalizedExcludes.some(ex => ex && h.includes(ex));
+    });
+    if (idx === -1) return '';
+    return String(valueRow[idx] || '').trim();
+  };
+
+  const personName = getByKey(['自分の名前を入力', '自分の名前', '担当者名', '氏名']);
+  const clientName = getByKey(['顧客企業名を正式名称で入力', '顧客企業名', '顧客名']);
+  const industry = getByKey(['顧客企業の業種', '業種']);
+  const products = getByKey(['導入済のcloudcircus製品', '導入済', 'cloudcircus製品'], ['顧客企業名', '顧客名']);
+  const plan = getByKey(['運用中のコンサルティングプラン', '運用中', 'プラン']);
+  const siteUrl = getByKey(['サイトurl', 'サイトurlを入力', 'webサイトurl', 'ホームページurl', 'url'], ['生成スライドurl']);
+  const genre = getByKey(['成果事例のジャンル', 'ジャンル']);
+  const feature = getByKey(['成果事例の特徴', '15文字']);
+  const detail = getByKey(['成果事例の内容', '300文字', '詳細']);
+
+  return {
+    personName,
+    clientName,
+    industry,
+    products,
+    siteUrl,
+    genre,
+    feature,
+    detail,
+    plan
+  };
+}
+
+function cleanupLegacyScoreElements(pres) {
+  const targets = ['スコア', '点'];
+  pres.getSlides().forEach(slide => {
+    slide.getPageElements().forEach(el => {
+      if (el.getPageElementType() !== SlidesApp.PageElementType.SHAPE) return;
+      const shape = el.asShape();
+      const text = String(shape.getText().asString() || '').trim();
+      if (targets.includes(text)) {
+        el.remove();
+      }
+    });
+  });
+}
+
+function renderContentFallback(pres, data, aiComment) {
+  const slide = pres.getSlides()[0];
+  const W = 720, H = 405;
+
+  const gpTitleBox = slide.insertTextBox('事例グランプリ', 20, 10, 220, 18);
+  const gpTitleStyle = gpTitleBox.getText().getTextStyle();
+  gpTitleStyle.setFontSize(10).setBold(true);
+  safeSetTextColor(gpTitleStyle, '#8B5A2B');
+
+  const clientBox = slide.insertTextBox(data.clientName || '（顧客名未入力）', 20, 24, 460, 36);
+  clientBox.getText().getTextStyle().setFontSize(21).setBold(true);
+
+  const personBox = slide.insertTextBox(`担当者：${data.personName || '未入力'}`, 505, 42, 195, 20);
+  personBox.getText().getTextStyle().setFontSize(11);
+  personBox.getText().getParagraphStyle().setParagraphAlignment(SlidesApp.ParagraphAlignment.END);
+
+  const industryBox = slide.insertTextBox(`・業種：${data.industry || '未入力'}`, 20, 62, W - 40, 16);
+  industryBox.getText().getTextStyle().setFontSize(9);
+
+  const planBox = slide.insertTextBox(`・運用プラン：${data.plan || '未入力'}`, 20, 77, W - 40, 16);
+  planBox.getText().getTextStyle().setFontSize(9);
+
+  const productBox = slide.insertTextBox(`・導入製品：${data.products || '未入力'}`, 20, 92, W - 40, 16);
+  productBox.getText().getTextStyle().setFontSize(9);
+
+  const siteUrlBox = slide.insertTextBox(`・サイトURL：${data.siteUrl || '未入力'}`, 20, 107, W - 40, 16);
+  siteUrlBox.getText().getTextStyle().setFontSize(8);
+
+  const genreBox = slide.insertTextBox(`・成果ジャンル：${data.genre || '未入力'}`, 20, 122, W - 40, 16);
+  genreBox.getText().getTextStyle().setFontSize(9);
+
+  const featureLabel = slide.insertTextBox('成果を一言で', 20, 146, 220, 20);
+  featureLabel.getText().getTextStyle().setFontSize(12).setBold(true);
+  const featureBox = slide.insertTextBox(data.feature || '（特徴未入力）', 20, 166, W - 40, 42);
+  featureBox.getText().getTextStyle().setFontSize(28).setBold(true);
+
+  const detailLabel = slide.insertTextBox('事例の内容', 20, 212, 220, 20);
+  detailLabel.getText().getTextStyle().setFontSize(12).setBold(true);
+  const detailBox = slide.insertTextBox(data.detail || '（詳細未入力）', 20, 232, W - 40, 58);
+  detailBox.getText().getTextStyle().setFontSize(14);
+
+  const aiLabel = slide.insertTextBox('※', 360, 334, 20, 20);
+  aiLabel.getText().getTextStyle().setFontSize(11).setBold(true);
+  const aiBox = slide.insertTextBox(trimForSlide(aiComment || '（AIコメントなし）', 95), 380, 334, 320, 34);
+  aiBox.getText().getTextStyle().setFontSize(9);
+
+  const footerText = `${Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy年M月')}：事例グランプリ`;
+  const footerBox = slide.insertTextBox(footerText, 500, H - 24, 200, 18);
+  footerBox.getText().getTextStyle().setFontSize(9);
+  footerBox.getText().getParagraphStyle().setParagraphAlignment(SlidesApp.ParagraphAlignment.END);
+}
+
+function buildFallbackComment(data) {
+  const feature = data.feature || '成果を創出';
+  const genre = data.genre || '成果領域';
+  return `「${feature}」を実現。${genre}で再現性のある運用成果が確認できる好事例です。`;
+}
+
+function trimForSlide(text, maxLength) {
+  const str = String(text || '').trim();
+  if (!str) return '';
+  if (str.length <= maxLength) return str;
+  return `${str.slice(0, maxLength - 1)}…`;
+}
+
+function safeSetTextColor(textStyle, colorHex) {
+  try {
+    textStyle.setForegroundColor(colorHex);
+  } catch (e) {
+    Logger.log(`文字色の設定をスキップ: ${e}`);
+  }
+}
+
+function insertSitePreviewImage(pres, siteUrl) {
+  const imageBlob = fetchSitePreviewImageBlob(siteUrl);
+  if (!imageBlob) return;
+
+  try {
+    const slide = pres.getSlides()[0];
+    // 右側の空き領域にサイト画像を配置
+    slide.insertImage(imageBlob, 500, 96, 190, 140);
+  } catch (e) {
+    Logger.log('サイト画像の挿入をスキップ: ' + e);
+  }
+}
+
+function fetchSitePreviewImageBlob(siteUrl) {
+  const url = String(siteUrl || '').trim();
+  if (!url) return null;
+  if (!/^https?:\/\//i.test(url)) return null;
+
+  try {
+    const htmlRes = UrlFetchApp.fetch(url, {
+      method: 'get',
+      muteHttpExceptions: true,
+      followRedirects: true,
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; GAS-bot/1.0)' }
+    });
+
+    if (htmlRes.getResponseCode() < 200 || htmlRes.getResponseCode() >= 300) {
+      Logger.log(`サイトHTML取得失敗: status=${htmlRes.getResponseCode()} url=${url}`);
+      return null;
+    }
+
+    const html = htmlRes.getContentText();
+    const imageUrl =
+      pickMetaContent(html, 'property', 'og:image') ||
+      pickMetaContent(html, 'name', 'twitter:image') ||
+      pickMetaContent(html, 'property', 'og:image:url');
+
+    if (!imageUrl) return null;
+
+    const absoluteImageUrl = toAbsoluteUrl(url, imageUrl);
+    const imageRes = UrlFetchApp.fetch(absoluteImageUrl, {
+      method: 'get',
+      muteHttpExceptions: true,
+      followRedirects: true,
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; GAS-bot/1.0)' }
+    });
+    if (imageRes.getResponseCode() < 200 || imageRes.getResponseCode() >= 300) {
+      Logger.log(`OG画像取得失敗: status=${imageRes.getResponseCode()} url=${absoluteImageUrl}`);
+      return null;
+    }
+
+    const blob = imageRes.getBlob();
+    if (!String(blob.getContentType() || '').startsWith('image/')) {
+      return null;
+    }
+    return blob;
+  } catch (e) {
+    Logger.log('サイト画像取得エラー: ' + e);
+    return null;
+  }
+}
+
+function pickMetaContent(html, attrName, attrValue) {
+  const escaped = escapeRegex(attrValue);
+  const pattern = new RegExp(
+    `<meta[^>]*${attrName}\\s*=\\s*["']${escaped}["'][^>]*content\\s*=\\s*["']([^"']+)["'][^>]*>|` +
+    `<meta[^>]*content\\s*=\\s*["']([^"']+)["'][^>]*${attrName}\\s*=\\s*["']${escaped}["'][^>]*>`,
+    'i'
+  );
+  const m = String(html || '').match(pattern);
+  return (m && (m[1] || m[2])) ? (m[1] || m[2]).trim() : '';
+}
+
+function toAbsoluteUrl(baseUrl, maybeRelative) {
+  const raw = String(maybeRelative || '').trim();
+  if (!raw) return '';
+  if (/^https?:\/\//i.test(raw)) return raw;
+  if (/^\/\//.test(raw)) {
+    const scheme = /^https:\/\//i.test(baseUrl) ? 'https:' : 'http:';
+    return `${scheme}${raw}`;
+  }
+
+  const hostMatch = String(baseUrl).match(/^(https?:\/\/[^\/?#]+)/i);
+  if (!hostMatch) return raw;
+  const origin = hostMatch[1];
+
+  if (raw.startsWith('/')) return `${origin}${raw}`;
+
+  const pathBase = String(baseUrl).replace(/[#?].*$/, '').replace(/\/[^/]*$/, '/');
+  return `${pathBase}${raw}`;
+}
+
+function escapeRegex(str) {
+  return String(str || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function normalizeHeader(value) {
+  return String(value || '')
+    .replace(/\s+/g, '')
+    .replace(/[（）()！!：:・、,./]/g, '')
+    .toLowerCase();
+}
+
+function ensureOutputColumns(sheet) {
+  const headerRange = sheet.getRange(1, 1, 1, sheet.getLastColumn());
+  const headerRow = headerRange.getValues()[0];
+  const normalizedHeaders = headerRow.map(h => normalizeHeader(h));
+
+  const slideHeader = normalizeHeader(COL.SLIDE_URL_HEADER);
+  const statusHeader = normalizeHeader(COL.STATUS_HEADER);
+
+  let slideUrlCol = normalizedHeaders.findIndex(h => h === slideHeader) + 1;
+  let statusCol = normalizedHeaders.findIndex(h => h === statusHeader) + 1;
+
+  if (!slideUrlCol) {
+    slideUrlCol = sheet.getLastColumn() + 1;
+    sheet.getRange(1, slideUrlCol).setValue(COL.SLIDE_URL_HEADER);
+  }
+  if (!statusCol) {
+    statusCol = sheet.getLastColumn() + 1;
+    sheet.getRange(1, statusCol).setValue(COL.STATUS_HEADER);
+  }
+
+  return { slideUrlCol, statusCol };
+}
