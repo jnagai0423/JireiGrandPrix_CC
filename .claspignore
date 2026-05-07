@@ -1,3 +1,4 @@
 **/**
 !appsscript.json
-!sheets_*.js
+!jirei_*.js
+!formbuild_gas.js
