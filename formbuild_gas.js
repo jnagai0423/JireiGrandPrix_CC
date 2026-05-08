@@ -64,6 +64,13 @@ function setup() {
   return url;
 }
 
+function applyHeaderLayout() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  normalizeSheet_(ss);
+  setupLogSheet_(ss);
+  writeLog_(ss, 'MANUAL', 'ヘッダーレイアウト適用', '');
+}
+
 function moveFileToOutputFolder_(fileId, label) {
   try {
     const folder = DriveApp.getFolderById(OUTPUT_FOLDER_ID_V3);
@@ -224,11 +231,19 @@ function normalizeSheet_(ss) {
   Logger.log('normalizeSheet_: start');
   const existing = ss.getSheetByName(SHEET_RESPONSES_V3);
   const sheets = ss.getSheets();
+  const looksLikeResponseSheet = s => {
+    const lastCol = s.getLastColumn();
+    if (lastCol <= 0) return false;
+    const headers = s.getRange(1, 1, 1, lastCol).getValues()[0];
+    return headers.some(h => Object.prototype.hasOwnProperty.call(FIELD_MAP_V3, h));
+  };
+
   const sheet = existing ||
     sheets.find(s => s.getName().startsWith('回答リスト')) ||
     sheets.find(s => s.getName().startsWith('フォームの回答')) ||
     sheets.find(s => s.getName().startsWith('Form Responses')) ||
     sheets.find(s => s.getName().startsWith('Form_Responses')) ||
+    sheets.find(looksLikeResponseSheet) ||
     sheets[sheets.length - 1];
 
   if (!existing && sheet.getName() !== SHEET_RESPONSES_V3) {
