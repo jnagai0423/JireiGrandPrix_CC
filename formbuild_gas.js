@@ -227,6 +227,8 @@ function normalizeSheet_(ss) {
   const sheet = existing ||
     sheets.find(s => s.getName().startsWith('回答リスト')) ||
     sheets.find(s => s.getName().startsWith('フォームの回答')) ||
+    sheets.find(s => s.getName().startsWith('Form Responses')) ||
+    sheets.find(s => s.getName().startsWith('Form_Responses')) ||
     sheets[sheets.length - 1];
 
   if (!existing && sheet.getName() !== SHEET_RESPONSES_V3) {
