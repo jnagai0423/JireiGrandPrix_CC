@@ -7,7 +7,9 @@
  */
 
 const FORM_TITLE_V3 = 'Sol事例紹介ページ 入力フォーム';
-const SHEET_RESPONSES_V3 = '回答データ';
+const SHEET_RESPONSES_V3 = '回答';
+const SHEET_RESPONSES_LEGACY_V3 = '回答データ';
+const SHEET_VIEW_V3 = '回答データ_表示用';
 const SHEET_LOG_V3 = '実行ログ';
 const OUTPUT_FOLDER_ID_V3 = '13cmi42diyueRgDRYfE04LWT2IAZ8nr8e';
 
@@ -53,8 +55,10 @@ function setup() {
   form.setDestination(FormApp.DestinationType.SPREADSHEET, ss.getId());
   SpreadsheetApp.flush();
   Logger.log('setup: destination set');
-  normalizeSheet_(ss);
+  const responseSheet = normalizeSheet_(ss);
   Logger.log('setup: sheet normalized');
+  setupDisplaySheet_(ss, responseSheet);
+  Logger.log('setup: display sheet ready');
   setupLogSheet_(ss);
   Logger.log('setup: log sheet ready');
   const url = form.getPublishedUrl();
@@ -66,7 +70,8 @@ function setup() {
 
 function applyHeaderLayout() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  normalizeSheet_(ss);
+  const responseSheet = normalizeSheet_(ss);
+  setupDisplaySheet_(ss, responseSheet);
   setupLogSheet_(ss);
   writeLog_(ss, 'MANUAL', 'ヘッダーレイアウト適用', '');
 }
@@ -229,24 +234,14 @@ function createForm_() {
 
 function normalizeSheet_(ss) {
   Logger.log('normalizeSheet_: start');
-  const existing = ss.getSheetByName(SHEET_RESPONSES_V3);
-  const sheets = ss.getSheets();
-  const looksLikeResponseSheet = s => {
-    const lastCol = s.getLastColumn();
-    if (lastCol <= 0) return false;
-    const headers = s.getRange(1, 1, 1, lastCol).getValues()[0];
-    return headers.some(h => Object.prototype.hasOwnProperty.call(FIELD_MAP_V3, h));
-  };
+  const existing = ss.getSheetByName(SHEET_RESPONSES_V3) || ss.getSheetByName(SHEET_RESPONSES_LEGACY_V3);
+  const sheet = findResponseSheet_(ss);
 
-  const sheet = existing ||
-    sheets.find(s => s.getName().startsWith('回答リスト')) ||
-    sheets.find(s => s.getName().startsWith('フォームの回答')) ||
-    sheets.find(s => s.getName().startsWith('Form Responses')) ||
-    sheets.find(s => s.getName().startsWith('Form_Responses')) ||
-    sheets.find(looksLikeResponseSheet) ||
-    sheets[sheets.length - 1];
-
-  if (!existing && sheet.getName() !== SHEET_RESPONSES_V3) {
+  if (sheet.getName() !== SHEET_RESPONSES_V3) {
+    if (existing && existing.getSheetId() !== sheet.getSheetId()) {
+      // 追加シートを増やさないため、既存の「回答」は置き換える
+      ss.deleteSheet(existing);
+    }
     sheet.setName(SHEET_RESPONSES_V3);
   }
   const lastCol = sheet.getLastColumn();
@@ -254,27 +249,77 @@ function normalizeSheet_(ss) {
     Logger.log('normalizeSheet_: no headers found (lastCol<=0). skip header mapping.');
     return;
   }
-  const row1Headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
-  const expectedEnglishHeaders = row1Headers.map(h => FIELD_MAP_V3[h] || h);
-  const row2Values = sheet.getRange(2, 1, 1, lastCol).getValues()[0];
-  const hasEnglishHeaderRow = expectedEnglishHeaders.every((h, i) => row2Values[i] === h);
-
-  if (!hasEnglishHeaderRow) {
-    // 回答データを壊さないよう、2行目に英字ヘッダー行を挿入する
-    sheet.insertRows(2, 1);
-  }
-
-  sheet.getRange(2, 1, 1, expectedEnglishHeaders.length).setValues([expectedEnglishHeaders]);
-
+  const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
   const statusCol = sheet.getLastColumn() + 1;
-  sheet.getRange(1, statusCol).setValue('ステータス');
-  sheet.getRange(2, statusCol).setValue('status');
-  sheet.setFrozenRows(2);
-  sheet.getRange(1, 1, 2, statusCol)
+  if (!headers.includes('ステータス') && !headers.includes('status')) {
+    sheet.getRange(1, statusCol).setValue('ステータス');
+  }
+  sheet.setFrozenRows(1);
+  sheet.getRange(1, 1, 1, sheet.getLastColumn())
     .setBackground('#1F497D')
     .setFontColor('#FFFFFF')
     .setFontWeight('bold');
   Logger.log('normalizeSheet_: done');
+  return sheet;
+}
+
+function findResponseSheet_(ss) {
+  const existing = ss.getSheetByName(SHEET_RESPONSES_V3) || ss.getSheetByName(SHEET_RESPONSES_LEGACY_V3);
+  const sheets = ss.getSheets();
+  const formNamedSheets = sheets.filter(s =>
+    s.getName().startsWith('回答リスト') ||
+    s.getName().startsWith('フォームの回答') ||
+    s.getName().startsWith('Form Responses') ||
+    s.getName().startsWith('Form_Responses')
+  );
+  const latestFormNamedSheet = formNamedSheets.length > 0 ? formNamedSheets[formNamedSheets.length - 1] : null;
+  const looksLikeResponseSheet = s => {
+    const lastCol = s.getLastColumn();
+    if (lastCol <= 0) return false;
+    const headers = s.getRange(1, 1, 1, lastCol).getValues()[0];
+    return headers.some(h => Object.prototype.hasOwnProperty.call(FIELD_MAP_V3, h));
+  };
+
+  if (latestFormNamedSheet && (!existing || latestFormNamedSheet.getSheetId() !== existing.getSheetId())) {
+    return latestFormNamedSheet;
+  }
+
+  return existing ||
+    sheets.find(looksLikeResponseSheet) ||
+    sheets[sheets.length - 1];
+}
+
+function setupDisplaySheet_(ss, sourceSheet) {
+  const display = ss.getSheetByName(SHEET_VIEW_V3) || ss.insertSheet(SHEET_VIEW_V3);
+  display.clear();
+
+  const lastCol = sourceSheet.getLastColumn();
+  if (lastCol <= 0) return;
+  const jpHeaders = sourceSheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  const enHeaders = jpHeaders.map(h => FIELD_MAP_V3[h] || h);
+
+  display.getRange(1, 1, 1, lastCol).setValues([jpHeaders]);
+  display.getRange(2, 1, 1, lastCol).setValues([enHeaders]);
+
+  const sourceName = sourceSheet.getName().replace(/'/g, "''");
+  const lastColLetter = columnToLetter_(lastCol);
+  display.getRange('A3').setFormula("=ARRAYFORMULA('" + sourceName + "'!A2:" + lastColLetter + ")");
+  display.setFrozenRows(2);
+  display.getRange(1, 1, 2, lastCol)
+    .setBackground('#1F497D')
+    .setFontColor('#FFFFFF')
+    .setFontWeight('bold');
+}
+
+function columnToLetter_(col) {
+  let letter = '';
+  let n = col;
+  while (n > 0) {
+    const mod = (n - 1) % 26;
+    letter = String.fromCharCode(65 + mod) + letter;
+    n = Math.floor((n - mod) / 26);
+  }
+  return letter;
 }
 
 function setupLogSheet_(ss) {
