@@ -237,13 +237,26 @@ function normalizeSheet_(ss) {
     Logger.log('normalizeSheet_: no headers found (lastCol<=0). skip header mapping.');
     return;
   }
-  const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
-  sheet.getRange(1, 1, 1, headers.length).setValues([headers.map(h => FIELD_MAP_V3[h] || h)]);
+  const row1Headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  const expectedEnglishHeaders = row1Headers.map(h => FIELD_MAP_V3[h] || h);
+  const row2Values = sheet.getRange(2, 1, 1, lastCol).getValues()[0];
+  const hasEnglishHeaderRow = expectedEnglishHeaders.every((h, i) => row2Values[i] === h);
+
+  if (!hasEnglishHeaderRow) {
+    // 回答データを壊さないよう、2行目に英字ヘッダー行を挿入する
+    sheet.insertRows(2, 1);
+  }
+
+  sheet.getRange(2, 1, 1, expectedEnglishHeaders.length).setValues([expectedEnglishHeaders]);
+
   const statusCol = sheet.getLastColumn() + 1;
-  sheet.getRange(1, statusCol).setValue('status');
-  sheet.setFrozenRows(1);
-  sheet.getRange(1, 1, 1, statusCol)
-    .setBackground('#1F497D').setFontColor('#FFFFFF').setFontWeight('bold');
+  sheet.getRange(1, statusCol).setValue('ステータス');
+  sheet.getRange(2, statusCol).setValue('status');
+  sheet.setFrozenRows(2);
+  sheet.getRange(1, 1, 2, statusCol)
+    .setBackground('#1F497D')
+    .setFontColor('#FFFFFF')
+    .setFontWeight('bold');
   Logger.log('normalizeSheet_: done');
 }
 
