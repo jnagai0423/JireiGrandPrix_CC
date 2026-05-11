@@ -1,17 +1,16 @@
 /**
  * Sol事例紹介ページ 入力フォーム v4
  * v3をベースに以下を追加：
- * - 顧客の課題・お悩み/伸びしろ（スライド3用・任意）→ 空欄時は課題①②から自動流用
+ * - 顧客の課題・お悩み/伸びしろ（スライド3用・任意）→ 空欄時は「抱えていた課題」から自動流用
  * - CC社からの提案/施策（スライド3用・任意）→ 空欄時は解決策から自動流用
  * - AI活用（スライド5用・任意3問）→ すべて空欄時はスライド5を省略
  */
 
 const FORM_TITLE_V3 = 'Sol事例紹介ページ 入力フォーム';
 const SHEET_RESPONSES_V3 = '回答';
-const SHEET_RESPONSES_LEGACY_V3 = '回答データ';
-const SHEET_VIEW_V3 = '回答データ_表示用';
 const SHEET_LOG_V3 = '実行ログ';
 const OUTPUT_FOLDER_ID_V3 = '13cmi42diyueRgDRYfE04LWT2IAZ8nr8e';
+const PROP_FORM_ID_V3 = 'FORM_ID_V3';
 
 const STAFF_LIST_V3 = [
   '上田いばら', '對馬綾香', '奥田快', '田口徹', '高橋秀吾',
@@ -19,46 +18,45 @@ const STAFF_LIST_V3 = [
 ];
 
 const FIELD_MAP_V3 = {
-  '日付': 'timestamp',
+  'タイムスタンプ': 'timestamp',
   'メールアドレス': 'email',
-  '担当者名': 'staff_name',
-  '顧客企業名': 'company_name',
-  '業界・業種': 'industry',
-  '従業員数': 'employees',
-  '本社所在地': 'location',
-  '顧客企業のWebサイトURL': 'website_url',
-  'クラウドサーカス導入製品': 'cc_product',
-  '成果を一言で（キャッチコピー）': 'catchcopy',
-  '抱えていた課題①': 'challenge_1',
-  '抱えていた課題②（任意）': 'challenge_2',
+  'あなたのお名前を入力してください': 'staff_name',
+  '顧客企業名を入力してください': 'company_name',
+  '顧客企業の業種を選択してください': 'industry',
+  '顧客企業の従業員数を入力してください': 'employees',
+  '顧客企業の本社所在地を入力してください': 'location',
+  '顧客企業のWebサイトURLを入力してください': 'website_url',
+  '顧客企業のクラウドサーカス導入製品を選択してください': 'cc_product',
+  '成果を「一言」で記載してください': 'catchcopy',
+  '抱えていた課題': 'challenge',
   '解決手法': 'solution',
   '得られた成果': 'result_summary',
-  '注目ポイント（特にアピールしたいこと）': 'highlight_point',
-  'KGI（顧客にとっての最終目標）': 'kgi_text',
-  'KPI①の項目名と数値': 'kpi1',
-  'KPI②の項目名と数値（任意）': 'kpi2',
-  'お悩み・伸びしろ（任意）': 'slide3_problem',
-  'CCからの提案・施策（任意）': 'slide3_proposal',
-  'どこにAIを使ったのか（任意）': 'ai_usage',
-  'AI活用前（任意）': 'ai_before',
-  'AI活用後（任意）': 'ai_after'
+  '注目ポイント（特にアピールしたいこと）を記載してください': 'highlight_point',
+  '顧客にとっての最終目標（KGI）を記載してください': 'kgi_text',
+  'KPI①の「項目名」と「数値」を記載してください': 'kpi1',
+  'KPI②の「項目名」と「数値」を記載してください（あれば・任意）': 'kpi2',
+  '顧客企業が抱えていた課題についてより詳しく記載ください': 'slide3_problem',
+  'CC社からの解決手法についてより詳しく記載ください': 'slide3_proposal',
+  '解決にあたってどの部分にAIを使用したかを記載ください（あれば・任意）': 'ai_usage',
+  'AI活用前（あれば・任意）': 'ai_before',
+  'AI活用後（あれば・任意）': 'ai_after'
 };
 
 function setup() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   Logger.log('setup: start');
-  const form = createForm_();
-  Logger.log('setup: form created');
+  const form = getOrCreateForm_();
+  removeLegacyFormItems_(form);
+  Logger.log('setup: form ready');
+  // フォーム自体も指定フォルダへ移動（既存フォームでも揃える）
   moveFileToOutputFolder_(form.getId(), 'form');
   moveFileToOutputFolder_(ss.getId(), 'spreadsheet');
   Logger.log('setup: files moved to output folder');
   form.setDestination(FormApp.DestinationType.SPREADSHEET, ss.getId());
   SpreadsheetApp.flush();
   Logger.log('setup: destination set');
-  const responseSheet = normalizeSheet_(ss);
+  normalizeSheet_(ss);
   Logger.log('setup: sheet normalized');
-  setupDisplaySheet_(ss, responseSheet);
-  Logger.log('setup: display sheet ready');
   setupLogSheet_(ss);
   Logger.log('setup: log sheet ready');
   const url = form.getPublishedUrl();
@@ -68,12 +66,71 @@ function setup() {
   return url;
 }
 
+function getOrCreateForm_() {
+  const props = PropertiesService.getScriptProperties();
+  const formId = props.getProperty(PROP_FORM_ID_V3);
+  if (formId) {
+    try {
+      const existingForm = FormApp.openById(formId);
+      return existingForm;
+    } catch (err) {
+      Logger.log('stored form not found, recreate: ' + err.message);
+    }
+  }
+
+  const form = createForm_();
+  moveFileToOutputFolder_(form.getId(), 'form');
+  props.setProperty(PROP_FORM_ID_V3, form.getId());
+  return form;
+}
+
 function applyHeaderLayout() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const responseSheet = normalizeSheet_(ss);
-  setupDisplaySheet_(ss, responseSheet);
+  const form = getOrCreateForm_();
+  removeLegacyFormItems_(form);
+  // 手動実行時もフォーム配置を揃える
+  moveFileToOutputFolder_(form.getId(), 'form');
+  form.setDestination(FormApp.DestinationType.SPREADSHEET, ss.getId());
+  SpreadsheetApp.flush();
+  normalizeSheet_(ss);
   setupLogSheet_(ss);
   writeLog_(ss, 'MANUAL', 'ヘッダーレイアウト適用', '');
+}
+
+/**
+ * 現在このGASが紐づけている「正しいフォーム」のID/URLをログに出します。
+ * Drive上の不要フォーム削除の判断材料にしてください。
+ */
+function debugFormInfo() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const form = getOrCreateForm_();
+  const url = form.getPublishedUrl();
+  // detailにURL、msgにIDを出す
+  writeLog_(ss, 'FORM_INFO', form.getId(), url);
+}
+
+function removeLegacyFormItems_(form) {
+  const legacyTitles = [
+    '抱えていた課題②（あれば・任意）'
+  ];
+  for (let i = form.getItems().length - 1; i >= 0; i--) {
+    const item = form.getItems()[i];
+    const title = item.getTitle && item.getTitle();
+    if (legacyTitles.includes(title)) {
+      form.deleteItem(i);
+      Logger.log('legacy item removed: ' + title);
+    }
+  }
+}
+
+/**
+ * フォームIDを初期化して新規フォームを作り直します。
+ * 「実行は成功するがフォームが見つからない」時の復旧用。
+ */
+function recreateFormAndSetup() {
+  const props = PropertiesService.getScriptProperties();
+  props.deleteProperty(PROP_FORM_ID_V3);
+  return setup();
 }
 
 function moveFileToOutputFolder_(fileId, label) {
@@ -165,14 +222,9 @@ function createForm_() {
     .setHelpText('例：問い合わせ数が3ヶ月で3倍に、etc');
 
   form.addParagraphTextItem()
-    .setTitle('抱えていた課題①')
+    .setTitle('抱えていた課題')
     .setRequired(true)
     .setHelpText('顧客企業が抱えていた課題を「簡潔」に記載ください');
-
-  form.addParagraphTextItem()
-    .setTitle('抱えていた課題②（あれば・任意）')
-    .setRequired(false)
-    .setHelpText('その他の課題があれば「簡潔」に記載ください、なければ空欄にしてください');
 
   form.addParagraphTextItem()
     .setTitle('解決手法')
@@ -207,7 +259,7 @@ function createForm_() {
   form.addParagraphTextItem()
     .setTitle('顧客企業が抱えていた課題についてより詳しく記載ください')
     .setRequired(false)
-    .setHelpText('空欄の場合は課題①②のテキストを自動で表記します');
+    .setHelpText('空欄の場合は課題のテキストを自動で表記します');
 
   form.addParagraphTextItem()
     .setTitle('CC社からの解決手法についてより詳しく記載ください')
@@ -234,14 +286,12 @@ function createForm_() {
 
 function normalizeSheet_(ss) {
   Logger.log('normalizeSheet_: start');
-  const existing = ss.getSheetByName(SHEET_RESPONSES_V3) || ss.getSheetByName(SHEET_RESPONSES_LEGACY_V3);
-  const sheet = findResponseSheet_(ss);
+  const existing = ss.getSheetByName(SHEET_RESPONSES_V3);
+  const detected = findResponseSheet_(ss);
+  const sheet = (existing && detected.getSheetId() !== existing.getSheetId()) ? existing : detected;
 
+  // フォーム連携シートは削除できないため、削除は行わず「回答」シートを優先して使う
   if (sheet.getName() !== SHEET_RESPONSES_V3) {
-    if (existing && existing.getSheetId() !== sheet.getSheetId()) {
-      // 追加シートを増やさないため、既存の「回答」は置き換える
-      ss.deleteSheet(existing);
-    }
     sheet.setName(SHEET_RESPONSES_V3);
   }
   const lastCol = sheet.getLastColumn();
@@ -254,17 +304,16 @@ function normalizeSheet_(ss) {
   if (!headers.includes('ステータス') && !headers.includes('status')) {
     sheet.getRange(1, statusCol).setValue('ステータス');
   }
-  sheet.setFrozenRows(1);
+  sheet.setFrozenRows(0);
   sheet.getRange(1, 1, 1, sheet.getLastColumn())
-    .setBackground('#1F497D')
-    .setFontColor('#FFFFFF')
-    .setFontWeight('bold');
+    .setBackground(null)
+    .setFontColor(null)
+    .setFontWeight('normal');
   Logger.log('normalizeSheet_: done');
-  return sheet;
 }
 
 function findResponseSheet_(ss) {
-  const existing = ss.getSheetByName(SHEET_RESPONSES_V3) || ss.getSheetByName(SHEET_RESPONSES_LEGACY_V3);
+  const existing = ss.getSheetByName(SHEET_RESPONSES_V3);
   const sheets = ss.getSheets();
   const formNamedSheets = sheets.filter(s =>
     s.getName().startsWith('回答リスト') ||
@@ -287,39 +336,6 @@ function findResponseSheet_(ss) {
   return existing ||
     sheets.find(looksLikeResponseSheet) ||
     sheets[sheets.length - 1];
-}
-
-function setupDisplaySheet_(ss, sourceSheet) {
-  const display = ss.getSheetByName(SHEET_VIEW_V3) || ss.insertSheet(SHEET_VIEW_V3);
-  display.clear();
-
-  const lastCol = sourceSheet.getLastColumn();
-  if (lastCol <= 0) return;
-  const jpHeaders = sourceSheet.getRange(1, 1, 1, lastCol).getValues()[0];
-  const enHeaders = jpHeaders.map(h => FIELD_MAP_V3[h] || h);
-
-  display.getRange(1, 1, 1, lastCol).setValues([jpHeaders]);
-  display.getRange(2, 1, 1, lastCol).setValues([enHeaders]);
-
-  const sourceName = sourceSheet.getName().replace(/'/g, "''");
-  const lastColLetter = columnToLetter_(lastCol);
-  display.getRange('A3').setFormula("=ARRAYFORMULA('" + sourceName + "'!A2:" + lastColLetter + ")");
-  display.setFrozenRows(2);
-  display.getRange(1, 1, 2, lastCol)
-    .setBackground('#1F497D')
-    .setFontColor('#FFFFFF')
-    .setFontWeight('bold');
-}
-
-function columnToLetter_(col) {
-  let letter = '';
-  let n = col;
-  while (n > 0) {
-    const mod = (n - 1) % 26;
-    letter = String.fromCharCode(65 + mod) + letter;
-    n = Math.floor((n - mod) / 26);
-  }
-  return letter;
 }
 
 function setupLogSheet_(ss) {
