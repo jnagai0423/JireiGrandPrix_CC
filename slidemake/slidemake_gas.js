@@ -20,6 +20,15 @@ const FIELD_MAP_SLIDES = {
   '顧客企業のWebサイトURLを入力してください': 'website_url',
   '顧客企業のクラウドサーカス導入製品を選択してください': 'cc_product',
   '成果を「一言」で記載してください': 'catchcopy',
+  '顧客企業が抱えていた課題を「簡潔」に記載してください': 'challenge',
+  '※課題をどのように解決したか「簡潔」に記載してください': 'solution',
+  '特に、得られた成果を「数値」で記載してください': 'result_summary',
+  '特にアピールしたいこと（注目ポイント）を記載してください': 'highlight_point',
+  '顧客企業が抱えていた課題についてより「詳しく」記載してください': 'slide3_problem',
+  'CC社からの解決手法についてより「詳しく」記載してください': 'slide3_proposal',
+  'どの部分にAIを使用したかを記載ください（あれば・任意）': 'ai_usage',
+
+  // 旧フォーム文言（互換）
   '抱えていた課題': 'challenge',
   '解決手法': 'solution',
   '得られた成果': 'result_summary',
@@ -32,6 +41,37 @@ const FIELD_MAP_SLIDES = {
   '解決にあたってどの部分にAIを使用したかを記載ください（あれば・任意）': 'ai_usage',
   'AI活用前（あれば・任意）': 'ai_before',
   'AI活用後（あれば・任意）': 'ai_after',
+};
+
+const FIELD_ALIASES_SLIDES = {
+  // 入力データ側の互換対応（最終的には正規キーへ寄せる）
+  challenge_1: 'challenge',
+  slide3_proposal: 'slide3_proposal',
+  result: 'result_summary',
+};
+
+const PLACEHOLDER_KEY_MAP = {
+  company_name: ['{{company_name}}'],
+  catchcopy: ['{{catchcopy}}'],
+  highlight_point: ['{{highlight_point}}'],
+  website_url: ['{{website_url}}'],
+  industry: ['{{industry}}'],
+  employees: ['{{employees}}'],
+  location: ['{{location}}'],
+  challenge: ['{{challenge}}'],
+  solution: ['{{solution}}'],
+  result_summary: ['{{result_summary}}'],
+  cc_product: ['{{cc_product}}'],
+  slide3_problem: ['{{slide3_problem}}', '{{slide3_Problem}}'], // 旧テンプレ互換
+  slide3_solution: ['{{slide3_solution}}'],
+  kgi_text: ['{{kgi_text}}'],
+  kpi1_label: ['{{kpi1_label}}'],
+  kpi1_value: ['{{kpi1_value}}'],
+  kpi2_label: ['{{kpi2_label}}'],
+  kpi2_value: ['{{kpi2_value}}'],
+  ai_usage: ['{{ai_usage}}'],
+  ai_before: ['{{ai_before}}'],
+  ai_after: ['{{ai_after}}'],
 };
 
 // ============================================================
@@ -49,7 +89,14 @@ function onFormSubmit(e) {
       }
     }
 
-    const data = buildDataObject_(e);
+    let data = buildDataObject_(e);
+    // トリガーイベントに必要項目が乗らない場合は、回答シート最終行から補完
+    if (!data.company_name || !data.challenge || !data.solution) {
+      const fallback = buildDataFromLastRow_(ss);
+      data = Object.assign({}, fallback, data);
+    }
+    writeLog_(ss, 'DEBUG', 'data keys', Object.keys(data).join(','));
+    writeLog_(ss, 'DEBUG', 'company/challenge', (data.company_name || '') + ' / ' + (data.challenge || ''));
     const slideUrl = generateSlide_(data);
     updateStatus_(ss, '✅ 完了', slideUrl);
     writeLog_(ss, 'SUCCESS', data.company_name + ' 生成完了', slideUrl);
@@ -73,7 +120,7 @@ function generateSlide_(d) {
 
   const kpi1 = splitKpi_(d.kpi1);
   const kpi2 = splitKpi_(d.kpi2);
-  const problem = d.slide3_problem || d.challenge_1 || d.challenge || '';
+  const problem = d.slide3_problem || d.challenge || '';
   const proposal = d.slide3_proposal || d.solution || '';
 
   const values = {
@@ -84,8 +131,7 @@ function generateSlide_(d) {
     industry: d.industry,
     employees: d.employees,
     location: d.location,
-    challenge_1: d.challenge_1 || d.challenge || '',
-    challenge_2: '',
+    challenge: d.challenge || '',
     solution: d.solution,
     result_summary: d.result_summary,
     cc_product: d.cc_product,
@@ -120,30 +166,14 @@ function generateSlide_(d) {
 }
 
 function buildReplacements_(v) {
-  // 正式キーは英字 snake_case のみ。
-  return [
-    ['{{company_name}}', v.company_name],
-    ['{{catchcopy}}', v.catchcopy],
-    ['{{highlight_point}}', v.highlight_point],
-    ['{{website_url}}', v.website_url],
-    ['{{industry}}', v.industry],
-    ['{{employees}}', v.employees],
-    ['{{location}}', v.location],
-    ['{{challenge}}', v.challenge_1],
-    ['{{solution}}', v.solution],
-    ['{{result_summary}}', v.result_summary],
-    ['{{cc_product}}', v.cc_product],
-    ['{{slide3_problem}}', v.slide3_problem],
-    ['{{slide3_solution}}', v.slide3_solution],
-    ['{{kgi_text}}', v.kgi_text],
-    ['{{kpi1_label}}', v.kpi1_label],
-    ['{{kpi1_value}}', v.kpi1_value],
-    ['{{kpi2_label}}', v.kpi2_label],
-    ['{{kpi2_value}}', v.kpi2_value],
-    ['{{ai_usage}}', v.ai_usage],
-    ['{{ai_before}}', v.ai_before],
-    ['{{ai_after}}', v.ai_after],
-  ];
+  const replacements = [];
+  Object.keys(PLACEHOLDER_KEY_MAP).forEach(key => {
+    const placeholders = PLACEHOLDER_KEY_MAP[key];
+    placeholders.forEach(ph => {
+      replacements.push([ph, v[key] || '']);
+    });
+  });
+  return replacements;
 }
 
 // ============================================================
@@ -162,15 +192,74 @@ function splitKpi_(kpiStr) {
 }
 
 function buildDataObject_(e) {
-  const data = { email: e.response.getRespondentEmail() || '' };
-  e.response.getItemResponses().forEach(ir => {
-    const key = FIELD_MAP_SLIDES[ir.getItem().getTitle()] || ir.getItem().getTitle();
-    const val = ir.getResponse();
-    data[key] = Array.isArray(val) ? val.join(', ') : (val || '');
-  });
-  if (!data.slide3_problem) data.slide3_problem = data.challenge_1 || data.challenge || '';
+  const data = { email: '' };
+
+  // Form trigger (イベントソース: フォームから) の payload
+  if (e && e.response && typeof e.response.getItemResponses === 'function') {
+    data.email = e.response.getRespondentEmail() || '';
+    e.response.getItemResponses().forEach(ir => {
+      const key = resolveFieldKey_(ir.getItem().getTitle());
+      const val = ir.getResponse();
+      data[key] = Array.isArray(val) ? val.join(', ') : (val || '');
+    });
+  // Spreadsheet trigger (イベントソース: スプレッドシートから) の payload
+  } else if (e && e.namedValues) {
+    Object.keys(e.namedValues).forEach(title => {
+      const key = resolveFieldKey_(title);
+      const val = e.namedValues[title];
+      data[key] = Array.isArray(val) ? val.join(', ') : String(val || '');
+    });
+    data.email = data.email || '';
+  } else {
+    throw new Error('フォーム送信イベントの形式を解釈できませんでした。トリガー設定を確認してください。');
+  }
+
+  if (!data.slide3_problem) data.slide3_problem = data.challenge || '';
   if (!data.slide3_proposal) data.slide3_proposal = data.solution || '';
   return data;
+}
+
+function buildDataFromLastRow_(ss) {
+  const sheet = getResponseSheet_(ss);
+  if (!sheet || sheet.getLastRow() < 2) return {};
+
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const lastRow = sheet.getRange(sheet.getLastRow(), 1, 1, sheet.getLastColumn()).getValues()[0];
+  const data = {};
+  headers.forEach((h, i) => {
+    const rawKey = String(h || '').trim();
+    const key = resolveFieldKey_(rawKey);
+    if (key === 'ステータス' || key === 'status' || key === 'slide_url') return;
+    data[key] = String(lastRow[i] || '');
+  });
+
+  if (!data.slide3_problem) data.slide3_problem = data.challenge || '';
+  if (!data.slide3_proposal) data.slide3_proposal = data.solution || '';
+  return data;
+}
+
+function resolveFieldKey_(rawKey) {
+  const key = String(rawKey || '').trim();
+  if (!key) return key;
+  if (Object.prototype.hasOwnProperty.call(FIELD_MAP_SLIDES, key)) return FIELD_MAP_SLIDES[key];
+  if (Object.prototype.hasOwnProperty.call(FIELD_ALIASES_SLIDES, key)) return FIELD_ALIASES_SLIDES[key];
+
+  const normalized = key
+    .toLowerCase()
+    .replace(/[ 　\t\n\r]/g, '')
+    .replace(/[()（）「」『』【】]/g, '');
+
+  if (normalized.includes('抱えていた課題') && normalized.includes('詳')) return 'slide3_problem';
+  if ((normalized.includes('解決手法') || normalized.includes('提案施策')) && normalized.includes('詳')) return 'slide3_proposal';
+  if (normalized.includes('抱えていた課題')) return 'challenge';
+  if (normalized.includes('解決手法') || normalized.includes('提案施策')) return 'solution';
+  if (normalized.includes('得られた成果')) return 'result_summary';
+  if (normalized.includes('注目ポイント')) return 'highlight_point';
+  if (normalized.includes('どの部分にaiを使用') || normalized.includes('aiを使用')) return 'ai_usage';
+  if (normalized.includes('ai活用前')) return 'ai_before';
+  if (normalized.includes('ai活用後')) return 'ai_after';
+
+  return key;
 }
 
 function updateStatus_(ss, status, slideUrl) {
@@ -213,24 +302,11 @@ function formatDate_(date) {
 
 function testWithLastRow() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = getResponseSheet_(ss);
-  if (!sheet || sheet.getLastRow() < 2) {
+  const data = buildDataFromLastRow_(ss);
+  if (!data || Object.keys(data).length === 0) {
     Logger.log('回答シートにデータがありません。');
     return;
   }
-
-  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-  const lastRow = sheet.getRange(sheet.getLastRow(), 1, 1, sheet.getLastColumn()).getValues()[0];
-  const data = {};
-  headers.forEach((h, i) => {
-    const rawKey = h.toString().trim();
-    const key = FIELD_MAP_SLIDES[rawKey] || rawKey;
-    if (key === 'ステータス' || key === 'status' || key === 'slide_url') return;
-    data[key] = String(lastRow[i] || '');
-  });
-
-  if (!data.slide3_problem) data.slide3_problem = data.challenge_1 || data.challenge || '';
-  if (!data.slide3_proposal) data.slide3_proposal = data.solution || '';
 
   Logger.log('取得データ: ' + JSON.stringify(data));
 
