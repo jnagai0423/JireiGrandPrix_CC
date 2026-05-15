@@ -2,19 +2,31 @@
  * delivery_writing@cloudcircus.co.jp 宛（メーリングリスト）で
  * 受信トレイにあるメールをスプレッドシートに出力するスクリプト
  *
- * 【セットアップ】
- * 1. Google スプレッドシートを新規作成する
- * 2. 拡張機能 > Apps スクリプト でこのコードを貼り付ける
- * 3. 下の SPREADSHEET_ID に、スプレッドシートの URL の .../d/【ここ】/edit の ID を入れる
- *    （このスクリプトをスプレッドシートに紐づけた場合は null のままでも可 → アクティブなシートに出力）
- * 4. 「権限を確認」で Gmail とスプレッドシートの権限を許可する
- * 5. メニュー「メール出力」>「受信トレイをシートに出力」を実行
+ * 【このリポジトリと Google の「接続」について】
+ * Cursor から script.google.com へ直接プッシュすることはできません。
+ * コードは Apps Script エディタにコピーするか、clasp（Google の CLI）で push してください。
+ *
+ * 【バインド（コンテナ）にしたい場合】
+ * スプレッドシートを開き「拡張機能 > Apps スクリプト」で開いたプロジェクトにこのコードを置くと、
+ * そのブックに紐づいた（コンテナバインド）スクリプトになります。
+ * メニュー「メール出力」は、バインド済みのときだけスプレッドシートを開いたタイミングで表示されます。
+ * （script.google.com だけのスタンドアロンプロジェクトでは onOpen はシートを開いても動きません。）
+ *
+ * 想定スプレッドシート:
+ * https://docs.google.com/spreadsheets/d/1Ahx2-vEILypuBQjaDi2kSOkIYLUE5XLXPhtplECEca8/edit
+ *
+ * 既存の Apps Script プロジェクト（スタンドアロン）例:
+ * https://script.google.com/home/projects/1YuzZuN2CDbcrlMTWktFw7ochUHBgC2YB0CpsTagRS5z67FFUYEkO3Euo/edit
+ * → この場合は下の SPREADSHEET_ID を必ず設定し、実行はエディタの「実行」かトリガーで行ってください。
  *
  * 検索条件を変えたい場合は GMAIL_QUERY を編集してください。
  */
 
-/** 出力先スプレッドシート ID。スクリプトを同じブックにバインドしている場合は null */
-const SPREADSHEET_ID = null;
+/**
+ * 出力先スプレッドシート ID（URL の /d/ と /edit のあいだ）。
+ * コンテナバインドで同じブックだけ使うなら null にして getActiveSpreadsheet() に任せてもよい。
+ */
+const SPREADSHEET_ID = '1Ahx2-vEILypuBQjaDi2kSOkIYLUE5XLXPhtplECEca8';
 
 /** Gmail 検索クエリ（必要に応じて調整） */
 const GMAIL_QUERY =
